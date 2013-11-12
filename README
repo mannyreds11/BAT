@@ -1,0 +1,15 @@
+bat and charbat
+Perl tools to compile and run batch files
+
+Usage Instructions: 
+
+1. 	Compile Assembly batch file:
+		$ perl bat file_name.B (Will generate file_name.bat)
+
+2. 	Run .bat file
+ 		$ perl charbat file_name.bat
+
+
+
+
+

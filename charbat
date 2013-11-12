@@ -1,0 +1,258 @@
+# charbat (batch file processor)
+# Author: Manuel Rojas
+
+#!/usr/bin/perl --
+
+use strict;
+use Getopt::Long;
+
+
+my %OPCODE; # opcodes $OPCODE{'LDI'} is '12'
+my %OPNUMBER;  # $OPNUMBER{'12'} is "LDI"
+my %OPSTRING; # eg $OPSTRING{'12'} is Perl code for operation 12
+
+my %PROGRAM;  # the program to execute
+
+my $opnumber;
+my $operand;
+my $STOPRUN = 'false';
+
+
+# read the OpDefs file to determine operators and their definitions
+sub ReadOpDefs {
+  my $OpFile=$_[0];
+  open(OPDEFS,"<".$OpFile) || die "can't open OpDefs file $OpFile\n";
+
+  my $line;
+  my $opnumber;
+  my $op;
+  while ($line = <OPDEFS> ) {
+    chomp($line);
+    if (
+	($line !~ m/^#/ )
+	 &&
+	($line !~ m/^[ ]*$/)
+
+	) { # it is not a comment or a blank line
+	  if ($line =~ /^	/) { # starts with a tab
+	    $OPSTRING{$opnumber} = $OPSTRING{$opnumber} . $line;
+	  } else {
+	    ($op,$opnumber) = split(':',$line);
+	    $OPCODE{$op} = $opnumber;
+	    $OPNUMBER{$opnumber} = $op;
+	    $OPSTRING{$opnumber} = "";
+	  }
+
+      }
+	 
+  }
+
+  close(OPDEFS);
+}
+
+
+## this is to initialize the memory and registers of the virtual machine
+
+my %mem;  # the memory cells for the virtual machine
+
+sub initvm {
+  my $i;
+  my $j;
+  my $subscript;
+  foreach $i ('0' .. '9') {
+    foreach $j ('0' .. '9') {
+      $subscript = $i.$j;
+      $mem{$subscript} = '00';
+    }
+  }
+
+  $mem{'AC'} = "00";
+  $mem{'PC'} = "00";
+  $mem{'IR'} = "00";
+}
+
+
+
+
+
+
+# sub to "repair" all of the memory by padding each cell to length 4
+sub pad {
+ my $i;
+  my $j;
+  my $subscript;
+  my $myac;                               # 0.8
+  my $limit = 4;                          # 0.8
+
+  foreach $i ('0' .. '9') {
+    foreach $j ('0' .. '9') {
+      $subscript = $i.$j;
+      while (length($mem{$subscript}) < 4) {
+	$mem{$subscript} = "0" . $mem{$subscript};
+      }
+    }
+      while (length($mem{'PC'}) < 2) { # PC pads to 2 cells
+	$mem{'PC'} = "0" . $mem{'PC'};
+      }
+
+     $myac = ($mem{'AC'} =~ /-/);
+     if ( $myac ) {
+       $mem{'AC'} =~ s/-//;
+       $limit = 3;
+       }
+      while (length($mem{'AC'}) < $limit) {
+	$mem{'AC'} = "0" . $mem{'AC'};
+      }
+      if ( $myac ) {
+	$mem{'AC'} = "-" . $mem{'AC'};
+      }
+
+      while (length($mem{'IR'}) < 4) {
+
+	$mem{'IR'} = "0" . $mem{'IR'};
+      }
+  }
+}
+
+
+# sub to execute an instruction, given the contents of IR
+
+sub execute {
+  my $instruction = $_[0]; # contents of IR
+#  pad();
+ 
+  # the first two are the instruction number and the second two are the operand
+  $opnumber = substr($instruction,0,2);
+  $operand = substr($instruction,2,3);
+# printf("executing instruction ->%s<- (%s) at PC %s\n",$OPNUMBER{$opnumber},$instruction, $mem{'PC'});
+  eval ($OPSTRING{$opnumber});
+
+
+}
+
+
+## load a program from a file
+sub loadprog {
+  my $progfile = $_[0]; # load from this file
+
+
+  # now load it -- assume the memory locations are all present and in
+  # correct order
+  
+  open (PROGFILE,"<" . $progfile) || die "can't open program file $progfile\n";
+  my $i;
+  my $j;
+  my $subscript;
+  my $line;
+  
+  foreach $i ('0' .. '9') {
+    foreach $j ('0' .. '9') {
+      $subscript = $i.$j;
+      $line = <PROGFILE>;
+      chomp($line);
+      $mem{$subscript} = $line;
+
+    }
+  }  close(PROGFILE);
+  
+}
+
+## sub to run the program as a batch
+sub runprog {
+  $mem{'PC'} = "00";
+  $STOPRUN = 'false';
+  while ($STOPRUN !~ m/true/) {
+    pad();
+    $mem{'IR'} = $mem{$mem{'PC'}};
+    execute ($mem{'IR'});
+  }
+  
+}
+
+
+############################### stack subprograms
+
+my @stk;
+my $rtn;
+
+my $topstack = -1;
+
+
+sub mypush {
+  $topstack++;
+  $stk[$topstack] = $_[0];
+  return;
+}
+
+sub mypop {
+  $rtn = $stk[$topstack--];
+  return $rtn;
+}
+
+my @returnstack;
+my $topreturnstack = -1;
+
+sub myretpush {
+  $topreturnstack++;
+  $returnstack[$topreturnstack] = $_[0];
+  return;
+}
+
+sub myretpop {
+  $rtn = $returnstack[$topreturnstack--];
+  return $rtn;
+}
+
+
+
+  
+
+
+
+
+
+#############################################################
+
+
+## start the action
+
+my $operationsfile = "BatOpDefs";
+my $showuseage = 0;
+
+GetOptions(
+	   "OpsFile=s" =>\$operationsfile,
+	   "help" =>\$showuseage
+);
+
+if ($showuseage == 1) {
+  printf("bat [--OpsFile OpDefs] file.bat\n");
+  printf("Options:\n");
+  printf("\t--OpsFile  filename  -  read Operations Defs from filename\n");
+  printf("\t--help               -  this message\n");
+  exit(0);
+}
+
+
+my $inputfile = $ARGV[0];
+# this file should have an ".bat" extension
+my ($basename,$ext)  = split('\.',$inputfile);
+
+if ($ext != 'bat') {
+  printf("input file %s should have '*.bat' name instead\n", $inputfile);
+  exit(0);
+}
+
+
+
+ReadOpDefs($operationsfile);
+
+initvm();
+loadprog($inputfile);
+
+runprog();
+
+
+
+exit(0);
+
+

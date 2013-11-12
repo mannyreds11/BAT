@@ -1,0 +1,126 @@
+# this file is built like a Makefile - tabs and blank lines
+#   are very important!
+#
+#
+#   OP:NUMBER:
+#   <tab>  defined by this code
+#   <tab>  and this code, etc
+#                                  <---- <blank line>
+#   NEXTOP:etc
+#
+#
+
+
+# this is the NOP
+NOP:00:
+	$mem{'PC'} = $mem{'PC'}  + 1;
+
+# ADD
+ADD:01:
+	$mem{'AC'} = $mem{'AC'} + $mem{$operand};
+	$mem{'PC'} = $mem{'PC'}  + 1;
+	
+
+
+SUB:02:
+	$mem{'AC'} = $mem{'AC'} - $mem{$operand};
+	$mem{'PC'} = $mem{'PC'}  + 1;
+
+
+
+STA:03:
+	$mem{$operand} = $mem{'AC'};
+	$mem{'PC'} = $mem{'PC'}  + 1;
+
+
+LDA:04:
+	$mem{'AC'} = $mem{$operand};
+	$mem{'PC'} = $mem{'PC'}  + 1;
+
+
+
+
+
+CMP:05:
+	if ($mem{'AC'} == $mem{$operand}) {
+		$mem{'AC'} = 0;
+	} else {
+		$mem{'AC'} = 1;
+	}
+	$mem{'PC'} = $mem{'PC'}  + 1;
+
+
+
+BRZ:06:
+	if ($mem{'AC'} == 0 ) {
+		$mem{'PC'} = $operand;
+	} else {
+		$mem{'PC'} = $mem{'PC'}  + 1;
+	}
+
+
+BNZ:07:
+	if ($mem{'AC'} != 0 ) {
+		$mem{'PC'} = $operand;
+	} else {
+		$mem{'PC'} = $mem{'PC'}  + 1;
+	}
+
+
+HLT:08:
+	$STOPRUN = 'true';
+
+
+GTO:09:
+	$mem{'PC'} = $operand;
+
+INV:10:
+	$STOPRUN = 'true';
+
+BRN:11:
+	if ($mem{'AC'} < 0 ) {
+		$mem{'PC'} = $operand;
+	} else {
+		$mem{'PC'} = $mem{'PC'}  + 1;
+	}
+	
+LDI:12:
+	$mem{'AC'} = $operand;
+	$mem{'PC'} = $mem{'PC'}  + 1;
+
+
+## print accumulator
+PRT:13:
+	printf("%s\n",$mem{'AC'});
+	$mem{'PC'} = $mem{'PC'}  + 1;
+
+
+################
+
+## push and pop
+PSH:14:
+	mypush($mem{'AC'});
+	$mem{'PC'} = $mem{'PC'}  + 1;
+
+
+POP:15:
+	$mem{'AC'} = mypop();
+	$mem{'PC'} = $mem{'PC'}  + 1;
+
+
+##########################
+
+######## gosub and return
+
+GSB:16:
+	myretpush($mem{'PC'});
+	$mem{'PC'} = $operand;
+
+
+RTN:17:
+	$mem{'PC'} = myretpop() + 1;
+	
+
+
+
+
